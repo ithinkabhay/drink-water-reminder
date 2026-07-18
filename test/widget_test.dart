@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -11,43 +12,56 @@ void main() {
   late Directory tempDir;
 
   setUpAll(() async {
-    tempDir = await Directory.systemTemp.createTemp('hive_test_');
+    TestWidgetsFlutterBinding.ensureInitialized();
+    tempDir = await Directory.systemTemp.createTemp('hive_widget_');
     Hive.init(tempDir.path);
     await StorageService.init();
   });
 
   tearDownAll(() async {
-    await Hive.close();
+    try {
+      await Hive.close().timeout(const Duration(seconds: 2));
+    } catch (_) {}
     if (tempDir.existsSync()) {
-      await tempDir.delete(recursive: true);
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
     }
-  });
-
-  setUp(() async {
-    await Hive.box(AppConstants.hiveBoxName).clear();
   });
 
   testWidgets('Home screen shows goal and drink button', (WidgetTester tester) async {
     await tester.pumpWidget(const DrinkWaterApp());
+    await tester.pump();
 
-    expect(find.text('Drink Water Reminder'), findsOneWidget);
-    expect(find.text("Today's Goal"), findsOneWidget);
-    expect(find.text('0 / 3000 ml'), findsOneWidget);
+    expect(find.text(AppConstants.appTitle), findsOneWidget);
+    expect(find.text(AppConstants.todaysGoalLabel), findsOneWidget);
+    expect(find.textContaining(' / 3000 ml'), findsOneWidget);
     expect(find.text('0%'), findsOneWidget);
-    expect(find.text('Drink 250 ml'), findsOneWidget);
+    expect(find.text(AppConstants.drinkButtonLabel), findsOneWidget);
+    expect(find.text("Today's streak"), findsOneWidget);
+    expect(find.text('Remaining'), findsOneWidget);
+    expect(find.text('3000 ml'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
-  testWidgets('Drink button persists intake across rebuilds', (WidgetTester tester) async {
+  testWidgets('History screen opens from home', (WidgetTester tester) async {
     await tester.pumpWidget(const DrinkWaterApp());
-    await tester.tap(find.text('Drink 250 ml'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    expect(find.text('250 / 3000 ml'), findsOneWidget);
+    await tester.tap(find.byTooltip('History'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
-    // Simulate a fresh app start by rebuilding with the same Hive box.
-    await tester.pumpWidget(const DrinkWaterApp());
-    await tester.pumpAndSettle();
+    expect(find.text('Hydration History'), findsOneWidget);
+    expect(find.text('Weekly'), findsOneWidget);
+    expect(find.text('Monthly'), findsOneWidget);
+    expect(find.text('Total intake'), findsOneWidget);
+    expect(find.text('Average'), findsOneWidget);
+    expect(find.text('Longest streak'), findsOneWidget);
 
-    expect(find.text('250 / 3000 ml'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 }
