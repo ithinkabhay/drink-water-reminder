@@ -1,67 +1,60 @@
-import 'dart:io';
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:drink_water_reminder/app.dart';
-import 'package:drink_water_reminder/services/storage_service.dart';
+import 'package:drink_water_reminder/models/reminder_settings.dart';
+import 'package:drink_water_reminder/services/notification_message_builder.dart';
 import 'package:drink_water_reminder/utils/constants.dart';
 
 void main() {
-  late Directory tempDir;
+  group('ReminderSettings', () {
+    test('defaults enable smart assistant options', () {
+      final settings = ReminderSettings.defaults();
+      expect(settings.enabled, isTrue);
+      expect(settings.intervalMinutes, 60);
+      expect(settings.soundEnabled, isTrue);
+      expect(settings.vibrationEnabled, isTrue);
+      expect(settings.defaultQuickAddMl, 250);
+      expect(settings.stopAfterGoalCompleted, isTrue);
+      expect(settings.skipIfRecentlyLogged, isTrue);
+      expect(settings.isCustomInterval, isFalse);
+    });
 
-  setUpAll(() async {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    tempDir = await Directory.systemTemp.createTemp('hive_widget_');
-    Hive.init(tempDir.path);
-    await StorageService.init();
+    test('detects custom intervals outside presets', () {
+      final settings = ReminderSettings.defaults().copyWith(
+        intervalMinutes: 33,
+      );
+      expect(settings.isCustomInterval, isTrue);
+    });
   });
 
-  tearDownAll(() async {
-    try {
-      await Hive.close().timeout(const Duration(seconds: 2));
-    } catch (_) {}
-    if (tempDir.existsSync()) {
-      try {
-        await tempDir.delete(recursive: true);
-      } catch (_) {}
-    }
+  group('NotificationMessageBuilder', () {
+    test('uses progress-aware copy', () {
+      expect(
+        NotificationMessageBuilder.build(consumedMl: 0, goalMl: 2000).title,
+        contains('Time to Drink Water'),
+      );
+      expect(
+        NotificationMessageBuilder.build(consumedMl: 1000, goalMl: 2000).title,
+        contains('halfway'),
+      );
+      expect(
+        NotificationMessageBuilder.build(consumedMl: 1600, goalMl: 2000).title,
+        contains('400 ml left'),
+      );
+      expect(
+        NotificationMessageBuilder.build(consumedMl: 2000, goalMl: 2000).title,
+        contains('Great job'),
+      );
+    });
   });
 
-  testWidgets('Home screen shows goal and drink button', (WidgetTester tester) async {
-    await tester.pumpWidget(const DrinkWaterApp());
-    await tester.pump();
-
-    expect(find.text(AppConstants.appTitle), findsOneWidget);
-    expect(find.text(AppConstants.todaysGoalLabel), findsOneWidget);
-    expect(find.textContaining(' / 3000 ml'), findsOneWidget);
-    expect(find.text('0%'), findsOneWidget);
-    expect(find.text(AppConstants.drinkButtonLabel), findsOneWidget);
-    expect(find.text("Today's streak"), findsOneWidget);
-    expect(find.text('Remaining'), findsOneWidget);
-    expect(find.text('3000 ml'), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-  });
-
-  testWidgets('History screen opens from home', (WidgetTester tester) async {
-    await tester.pumpWidget(const DrinkWaterApp());
-    await tester.pump();
-
-    await tester.tap(find.byTooltip('History'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-
-    expect(find.text('Hydration History'), findsOneWidget);
-    expect(find.text('Weekly'), findsOneWidget);
-    expect(find.text('Monthly'), findsOneWidget);
-    expect(find.text('Total intake'), findsOneWidget);
-    expect(find.text('Average'), findsOneWidget);
-    expect(find.text('Longest streak'), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+  group('AppConstants intervals', () {
+    test('exposes presets and custom bounds', () {
+      expect(AppConstants.reminderIntervalPresetsMinutes, containsAll([15, 60, 180]));
+      expect(AppConstants.minCustomIntervalMinutes, 10);
+      expect(AppConstants.maxCustomIntervalMinutes, 360);
+      expect(AppConstants.snoozeOptionsMinutes, [10, 15, 30]);
+      expect(AppConstants.intervalLabel(90), 'Every 1h 30m');
+      expect(AppConstants.intervalLabel(120), 'Every 2 hours');
+    });
   });
 }

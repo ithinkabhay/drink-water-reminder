@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/hydration_stats.dart';
+import '../repositories/hydration_repository.dart';
 import '../services/hydration_history_service.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/gradient_background.dart';
@@ -19,10 +20,12 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin {
   final HydrationHistoryService _historyService = HydrationHistoryService();
+  final HydrationRepository _repository = HydrationRepository();
 
   late final TabController _tabController;
   late HydrationStats _weekStats;
   late HydrationStats _monthStats;
+  late int _goalMl;
 
   @override
   void initState() {
@@ -30,6 +33,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     _tabController = TabController(length: 2, vsync: this);
     _weekStats = _historyService.loadStats(HistoryPeriod.week);
     _monthStats = _historyService.loadStats(HistoryPeriod.month);
+    _goalMl = _repository.loadDailyGoalMl();
   }
 
   @override
@@ -64,12 +68,14 @@ class _HistoryScreenState extends State<HistoryScreen>
           children: [
             _HistoryPeriodView(
               stats: _weekStats,
+              goalMl: _goalMl,
               subtitle: 'Last 7 days',
               textTheme: textTheme,
               colorScheme: colorScheme,
             ),
             _HistoryPeriodView(
               stats: _monthStats,
+              goalMl: _goalMl,
               subtitle: 'Last 30 days',
               textTheme: textTheme,
               colorScheme: colorScheme,
@@ -84,12 +90,14 @@ class _HistoryScreenState extends State<HistoryScreen>
 class _HistoryPeriodView extends StatelessWidget {
   const _HistoryPeriodView({
     required this.stats,
+    required this.goalMl,
     required this.subtitle,
     required this.textTheme,
     required this.colorScheme,
   });
 
   final HydrationStats stats;
+  final int goalMl;
   final String subtitle;
   final TextTheme textTheme;
   final ColorScheme colorScheme;
@@ -132,7 +140,7 @@ class _HistoryPeriodView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  HistoryIntakeChart(stats: stats),
+                  HistoryIntakeChart(stats: stats, goalMl: goalMl),
                 ],
               ),
             ),

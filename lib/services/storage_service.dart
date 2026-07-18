@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/daily_intake.dart';
+import '../models/intake_entry.dart';
 import '../models/reminder_settings.dart';
+import '../models/user_profile.dart';
 import '../utils/constants.dart';
 
 /// Handles persistent local storage of today's water intake, daily history,
@@ -39,6 +41,7 @@ class StorageService {
         _writeHistoryEntry(savedDate, previous);
       }
       _box.put(AppConstants.keyConsumedMl, 0);
+      _box.put(AppConstants.keyIntakeEntries, jsonEncode(<Map<String, dynamic>>[]));
       _box.put(AppConstants.keySavedDate, today);
       return 0;
     }
@@ -59,6 +62,41 @@ class StorageService {
     if (consumedMl > 0) {
       await _updateStreakOnDrink();
     }
+  }
+
+  /// Returns today's intake log entries (oldest → newest).
+  List<IntakeEntry> loadTodayEntries() {
+    // Ensure day rollover runs before reading entries.
+    loadTodayIntake();
+    return _readEntries();
+  }
+
+  /// Appends [entry], updates today's total, and persists everything.
+  ///
+  /// Returns the new total consumed in milliliters.
+  Future<int> addIntakeEntry(IntakeEntry entry) async {
+    final current = loadTodayIntake();
+    final entries = _readEntries()..add(entry);
+    final total = current + entry.amountMl;
+    await _writeEntries(entries);
+    await saveTodayIntake(total);
+    return total;
+  }
+
+  /// Removes the most recent intake entry and restores the previous total.
+  ///
+  /// Returns a record of `(removed, newTotal)`, or `null` when there is
+  /// nothing to undo.
+  Future<({IntakeEntry removed, int newTotal})?> undoLastIntakeEntry() async {
+    final current = loadTodayIntake();
+    final entries = _readEntries();
+    if (entries.isEmpty) return null;
+
+    final removed = entries.removeLast();
+    final total = (current - removed.amountMl).clamp(0, current);
+    await _writeEntries(entries);
+    await saveTodayIntake(total);
+    return (removed: removed, newTotal: total);
   }
 
   /// Returns a copy of the stored daily history map (dateKey → ml).
@@ -138,6 +176,24 @@ class StorageService {
           defaults.endHour,
       endMinute: (_box.get(AppConstants.keyReminderEndMinute) as int?) ??
           defaults.endMinute,
+      soundEnabled: (_box.get(AppConstants.keyReminderSoundEnabled) as bool?) ??
+          defaults.soundEnabled,
+      vibrationEnabled:
+          (_box.get(AppConstants.keyReminderVibrationEnabled) as bool?) ??
+              defaults.vibrationEnabled,
+      defaultQuickAddMl:
+          (_box.get(AppConstants.keyDefaultQuickAddMl) as int?) ??
+              defaults.defaultQuickAddMl,
+      stopAfterGoalCompleted:
+          (_box.get(AppConstants.keyStopAfterGoalCompleted) as bool?) ??
+              defaults.stopAfterGoalCompleted,
+      skipIfRecentlyLogged:
+          (_box.get(AppConstants.keySkipIfRecentlyLogged) as bool?) ??
+              defaults.skipIfRecentlyLogged,
+      customRingtoneUri:
+          _box.get(AppConstants.keyCustomRingtoneUri) as String?,
+      customRingtoneTitle:
+          _box.get(AppConstants.keyCustomRingtoneTitle) as String?,
     );
   }
 
@@ -152,6 +208,104 @@ class StorageService {
     await _box.put(AppConstants.keyReminderStartMinute, settings.startMinute);
     await _box.put(AppConstants.keyReminderEndHour, settings.endHour);
     await _box.put(AppConstants.keyReminderEndMinute, settings.endMinute);
+    await _box.put(AppConstants.keyReminderSoundEnabled, settings.soundEnabled);
+    await _box.put(
+      AppConstants.keyReminderVibrationEnabled,
+      settings.vibrationEnabled,
+    );
+    await _box.put(
+      AppConstants.keyDefaultQuickAddMl,
+      settings.defaultQuickAddMl,
+    );
+    await _box.put(
+      AppConstants.keyStopAfterGoalCompleted,
+      settings.stopAfterGoalCompleted,
+    );
+    await _box.put(
+      AppConstants.keySkipIfRecentlyLogged,
+      settings.skipIfRecentlyLogged,
+    );
+    if (settings.customRingtoneUri == null) {
+      await _box.delete(AppConstants.keyCustomRingtoneUri);
+      await _box.delete(AppConstants.keyCustomRingtoneTitle);
+    } else {
+      await _box.put(
+        AppConstants.keyCustomRingtoneUri,
+        settings.customRingtoneUri,
+      );
+      await _box.put(
+        AppConstants.keyCustomRingtoneTitle,
+        settings.customRingtoneTitle,
+      );
+    }
+  }
+
+  /// Timestamp of the most recent intake entry today, or `null` if none.
+  DateTime? loadLastIntakeTimestamp() {
+    final entries = loadTodayEntries();
+    if (entries.isEmpty) return null;
+    return entries.last.timestamp;
+  }
+
+  /// Returns the persisted daily goal in milliliters.
+  ///
+  /// Falls back to [AppConstants.defaultDailyGoalMl] when unset or invalid.
+  int loadDailyGoalMl() {
+    final stored = _box.get(AppConstants.keyDailyGoalMl);
+    if (stored is int) {
+      return stored.clamp(
+        AppConstants.minDailyGoalMl,
+        AppConstants.maxDailyGoalMl,
+      );
+    }
+    if (stored is num) {
+      return stored.toInt().clamp(
+        AppConstants.minDailyGoalMl,
+        AppConstants.maxDailyGoalMl,
+      );
+    }
+    return AppConstants.defaultDailyGoalMl;
+  }
+
+  /// Persists the user's daily water goal in milliliters.
+  Future<void> saveDailyGoalMl(int goalMl) async {
+    final clamped = goalMl.clamp(
+      AppConstants.minDailyGoalMl,
+      AppConstants.maxDailyGoalMl,
+    );
+    await _box.put(AppConstants.keyDailyGoalMl, clamped);
+  }
+
+  /// Whether first-launch onboarding has been completed.
+  bool isOnboardingComplete() {
+    return (_box.get(AppConstants.keyOnboardingComplete) as bool?) ?? false;
+  }
+
+  /// Marks onboarding as finished so it is skipped on later launches.
+  Future<void> setOnboardingComplete(bool complete) async {
+    await _box.put(AppConstants.keyOnboardingComplete, complete);
+  }
+
+  /// Loads the saved user profile, or `null` when none exists.
+  UserProfile? loadUserProfile() {
+    final raw = _box.get(AppConstants.keyUserProfile);
+    if (raw is! String || raw.isEmpty) return null;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return UserProfile.fromJson(Map<String, dynamic>.from(decoded));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Persists [profile] as JSON in Hive.
+  Future<void> saveUserProfile(UserProfile profile) async {
+    await _box.put(
+      AppConstants.keyUserProfile,
+      jsonEncode(profile.toJson()),
+    );
   }
 
   Map<String, int> _readHistoryMap() {
@@ -183,6 +337,27 @@ class StorageService {
     final history = _readHistoryMap();
     history[dateKey] = consumedMl;
     await _box.put(AppConstants.keyDailyHistory, jsonEncode(history));
+  }
+
+  List<IntakeEntry> _readEntries() {
+    final raw = _box.get(AppConstants.keyIntakeEntries);
+    if (raw is! String || raw.isEmpty) return [];
+
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return [];
+
+    return [
+      for (final item in decoded)
+        if (item is Map)
+          IntakeEntry.fromJson(Map<String, dynamic>.from(item)),
+    ];
+  }
+
+  Future<void> _writeEntries(List<IntakeEntry> entries) async {
+    await _box.put(
+      AppConstants.keyIntakeEntries,
+      jsonEncode([for (final e in entries) e.toJson()]),
+    );
   }
 
   /// Returns today's date as an ISO-8601 calendar string (yyyy-MM-dd).

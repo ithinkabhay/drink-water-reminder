@@ -37,7 +37,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(
-              AppConstants.drinkButtonRadius,
+              AppConstants.buttonRadius,
             ),
           ),
         ),
@@ -72,7 +72,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(
-              AppConstants.drinkButtonRadius,
+              AppConstants.buttonRadius,
             ),
           ),
         ),

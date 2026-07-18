@@ -76,4 +76,42 @@ void main() {
     expect(stats.totalMl, 0);
     expect(stats.averageMl, 0);
   });
+
+  test('persists and loads daily goal', () async {
+    final repository = HydrationRepository();
+
+    expect(repository.loadDailyGoalMl(), AppConstants.defaultDailyGoalMl);
+
+    await repository.saveDailyGoalMl(3500);
+    expect(repository.loadDailyGoalMl(), 3500);
+
+    await repository.saveDailyGoalMl(100);
+    expect(repository.loadDailyGoalMl(), AppConstants.minDailyGoalMl);
+
+    await repository.saveDailyGoalMl(50000);
+    expect(repository.loadDailyGoalMl(), AppConstants.maxDailyGoalMl);
+  });
+
+  test('adds intake entries and supports undo', () async {
+    final repository = HydrationRepository();
+
+    expect(repository.loadTodayEntries(), isEmpty);
+
+    final afterFirst = await repository.addIntake(250);
+    expect(afterFirst, 250);
+    expect(repository.loadTodayIntake(), 250);
+    expect(repository.loadTodayEntries(), hasLength(1));
+    expect(repository.loadTodayEntries().single.amountMl, 250);
+
+    final afterSecond = await repository.addIntake(100);
+    expect(afterSecond, 350);
+    expect(repository.loadTodayEntries(), hasLength(2));
+
+    final undone = await repository.undoLastIntake();
+    expect(undone, isNotNull);
+    expect(undone!.removed.amountMl, 100);
+    expect(undone.newTotal, 250);
+    expect(repository.loadTodayIntake(), 250);
+    expect(repository.loadTodayEntries(), hasLength(1));
+  });
 }

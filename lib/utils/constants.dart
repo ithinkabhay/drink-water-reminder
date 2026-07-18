@@ -16,14 +16,42 @@ class AppConstants {
   /// Label above the intake / goal values.
   static const String todaysGoalLabel = "Today's Goal";
 
-  /// Label on the primary drink action button.
-  static const String drinkButtonLabel = 'Drink 250 ml';
+  /// Default daily water intake goal in milliliters (used on first launch).
+  static const int defaultDailyGoalMl = 3000;
 
-  /// Daily water intake goal in milliliters.
-  static const int dailyGoalMl = 3000;
+  /// Lowest allowed custom daily goal in milliliters.
+  static const int minDailyGoalMl = 500;
 
-  /// Amount added each time the user taps the drink button.
-  static const int drinkAmountMl = 250;
+  /// Highest allowed custom daily goal in milliliters.
+  static const int maxDailyGoalMl = 10000;
+
+  /// Preset daily goals shown in the Set Daily Goal sheet.
+  static const List<int> quickDailyGoalOptionsMl = [
+    2000,
+    2500,
+    3000,
+    3500,
+    4000,
+  ];
+
+  /// Preset amounts shown in the Quick Add grid (milliliters).
+  static const List<int> quickAddAmountsMl = [
+    100,
+    200,
+    250,
+    500,
+    750,
+    1000,
+  ];
+
+  /// Lowest allowed custom quick-add amount in milliliters.
+  static const int minCustomAmountMl = 50;
+
+  /// Highest allowed custom quick-add amount in milliliters.
+  static const int maxCustomAmountMl = 5000;
+
+  /// Label for the custom quick-add tile.
+  static const String customAmountLabel = 'Custom';
 
   /// Water-inspired seed color for the Material 3 color scheme.
   static const Color seedColor = Color(0xFF2196F3);
@@ -34,11 +62,14 @@ class AppConstants {
   /// Stroke width of the circular progress indicator.
   static const double progressStrokeWidth = 10;
 
-  /// Height of the primary drink button.
-  static const double drinkButtonHeight = 60;
+  /// Height of each quick-add grid tile.
+  static const double quickAddTileHeight = 56;
 
-  /// Corner radius of the primary drink button.
-  static const double drinkButtonRadius = 20;
+  /// Corner radius of quick-add tiles.
+  static const double quickAddTileRadius = 16;
+
+  /// Corner radius for filled primary buttons (theme-wide).
+  static const double buttonRadius = 20;
 
   /// Corner radius for glassmorphism cards.
   static const double glassCardRadius = 24;
@@ -60,6 +91,9 @@ class AppConstants {
   /// Key for the stored milliliters consumed today.
   static const String keyConsumedMl = 'consumed_ml';
 
+  /// Key for the user-selected daily goal in milliliters.
+  static const String keyDailyGoalMl = 'daily_goal_ml';
+
   /// Key for the ISO date string (yyyy-MM-dd) of the last save.
   static const String keySavedDate = 'saved_date';
 
@@ -71,6 +105,9 @@ class AppConstants {
 
   /// Key for the map of daily intake history (date → ml).
   static const String keyDailyHistory = 'daily_history';
+
+  /// Key for today's individual intake entries (JSON list).
+  static const String keyIntakeEntries = 'intake_entries';
 
   /// Key for whether reminders are enabled.
   static const String keyRemindersEnabled = 'reminders_enabled';
@@ -90,30 +127,149 @@ class AppConstants {
   /// Key for reminder window end minute.
   static const String keyReminderEndMinute = 'reminder_end_minute';
 
+  /// Key for whether notification sound is enabled.
+  static const String keyReminderSoundEnabled = 'reminder_sound_enabled';
+
+  /// Key for whether notification vibration is enabled.
+  static const String keyReminderVibrationEnabled =
+      'reminder_vibration_enabled';
+
+  /// Key for the user-selected system ringtone URI (Android).
+  static const String keyCustomRingtoneUri = 'custom_ringtone_uri';
+
+  /// Key for the display title of the selected ringtone.
+  static const String keyCustomRingtoneTitle = 'custom_ringtone_title';
+
+  /// Key for the default quick-add amount used by "Drank Water".
+  static const String keyDefaultQuickAddMl = 'default_quick_add_ml';
+
+  /// Key for stopping reminders after the daily goal is completed.
+  static const String keyStopAfterGoalCompleted =
+      'stop_after_goal_completed';
+
+  /// Key for skipping reminders when water was logged recently.
+  static const String keySkipIfRecentlyLogged = 'skip_if_recently_logged';
+
+  /// Key for whether first-launch onboarding has been completed.
+  static const String keyOnboardingComplete = 'onboarding_complete';
+
+  /// Key for the persisted user profile JSON.
+  static const String keyUserProfile = 'user_profile';
+
+  /// Lowest allowed age during onboarding / profile edit.
+  static const int minAge = 5;
+
+  /// Highest allowed age during onboarding / profile edit.
+  static const int maxAge = 120;
+
+  /// Lowest allowed weight in kilograms.
+  static const double minWeightKg = 20;
+
+  /// Highest allowed weight in kilograms.
+  static const double maxWeightKg = 300;
+
+  /// Lowest allowed height in centimeters.
+  static const double minHeightCm = 80;
+
+  /// Highest allowed height in centimeters.
+  static const double maxHeightCm = 250;
+
   // ── Notifications ──────────────────────────────────────────────────
 
-  /// Title shown on drink reminder notifications.
+  /// Fallback title shown on drink reminder notifications.
   static const String notificationTitle = '💧 Time to Drink Water';
 
-  /// Body shown on drink reminder notifications.
+  /// Fallback body shown on drink reminder notifications.
   static const String notificationBody =
-      'Stay hydrated! Drink a glass of water.';
+      "It's time to drink your next glass of water.";
 
-  /// Android notification channel id.
-  static const String notificationChannelId = 'water_reminders';
+  /// Full-screen reminder headline.
+  static const String fullScreenReminderTitle = '💧 Time to Drink Water';
+
+  /// Full-screen reminder supporting copy.
+  static const String fullScreenReminderBody =
+      "It's time to drink your next glass of water.";
+
+  /// Android raw resource name (no extension) for the built-in chime fallback.
+  ///
+  /// File lives at `android/app/src/main/res/raw/water_chime.wav` and is
+  /// also mirrored under `assets/sounds/` for bundling.
+  static const String notificationSoundResource = 'water_chime';
+
+  /// Base Android notification channel id prefix (v5 restores vibration +
+  /// supports per-ringtone / per-vibration channel variants).
+  ///
+  /// Channel settings are immutable on Android — [NotificationService]
+  /// appends sound/vibration suffixes so toggles take effect.
+  static const String notificationChannelIdPrefix = 'water_reminders_v5';
+
+  /// Legacy alias kept for older references; prefer dynamic channel ids.
+  static const String notificationChannelId = notificationChannelIdPrefix;
 
   /// Android notification channel name.
   static const String notificationChannelName = 'Water Reminders';
 
   /// Android notification channel description.
   static const String notificationChannelDescription =
-      'Periodic reminders to drink water';
+      'High-priority hydration reminders with sound, vibration, '
+      'and full-screen alerts';
+
+  /// How long reminder sound / heads-up should run (milliseconds).
+  static const int notificationAlertDurationMs = 10000;
 
   /// How many days ahead to schedule reminder notifications.
-  static const int scheduleDaysAhead = 7;
+  ///
+  /// Kept short so short intervals stay under Android's ~500 concurrent
+  /// exact-alarm limit (also capped by [maxPendingReminders]).
+  static const int scheduleDaysAhead = 2;
 
-  /// Allowed reminder intervals in minutes.
-  static const List<int> reminderIntervalsMinutes = [30, 60, 120];
+  /// Hard cap on pending interval reminders (Android limit is ~500 total).
+  static const int maxPendingReminders = 80;
+
+  /// Preset reminder intervals in minutes (excludes custom).
+  static const List<int> reminderIntervalPresetsMinutes = [
+    15,
+    30,
+    45,
+    60,
+    90,
+    120,
+    180,
+  ];
+
+  /// Legacy alias kept for any remaining callers.
+  static const List<int> reminderIntervalsMinutes =
+      reminderIntervalPresetsMinutes;
+
+  /// Sentinel value used in UI selectors for a custom interval.
+  static const int customIntervalSentinel = -1;
+
+  /// Minimum custom reminder interval in minutes.
+  static const int minCustomIntervalMinutes = 10;
+
+  /// Maximum custom reminder interval in minutes.
+  static const int maxCustomIntervalMinutes = 360;
+
+  /// Snooze options shown after "Remind Me Later".
+  static const List<int> snoozeOptionsMinutes = [10, 15, 30];
+
+  /// Notification action id: log the default quick-add amount.
+  static const String actionDrankWater = 'drank_water';
+
+  /// Notification action id: open snooze duration picker.
+  static const String actionRemindLater = 'remind_later';
+
+  /// Payload used for regular scheduled hydration reminders.
+  static const String payloadReminder = 'hydration_reminder';
+
+  /// Payload used when launching the snooze picker.
+  static const String payloadSnooze = 'snooze_picker';
+
+  /// iOS / macOS notification action category identifier.
+  static const String darwinReminderCategoryId = 'hydration_reminder';
+
+  /// Notification id used for one-off snooze reminders.
+  static const int snoozeNotificationId = 900001;
 
   /// Returns a motivational line based on progress toward the daily goal.
   static String motivationalMessageFor(double progress) {
@@ -122,5 +278,18 @@ class AppConstants {
     if (progress >= 0.5) return motivationalMessages[2];
     if (progress >= 0.25) return motivationalMessages[1];
     return motivationalMessages[0];
+  }
+
+  /// Human-readable label for a reminder interval in minutes.
+  static String intervalLabel(int minutes) {
+    if (minutes < 60) return 'Every $minutes minutes';
+    if (minutes == 60) return 'Every 1 hour';
+    if (minutes % 60 == 0) {
+      final hours = minutes ~/ 60;
+      return 'Every $hours hours';
+    }
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    return 'Every ${hours}h ${mins}m';
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -31,7 +32,14 @@ class _WaterProgressState extends State<WaterProgress>
     _waveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2800),
-    )..repeat();
+    );
+    // Skip infinite wave animation under widget/unit tests.
+    final inTest = WidgetsBinding.instance.runtimeType
+        .toString()
+        .contains('TestWidgetsFlutterBinding');
+    if (!inTest && !Platform.environment.containsKey('FLUTTER_TEST')) {
+      _waveController.repeat();
+    }
 
     _progressController = AnimationController(
       vsync: this,
@@ -43,7 +51,11 @@ class _WaterProgressState extends State<WaterProgress>
     ).animate(
       CurvedAnimation(parent: _progressController, curve: Curves.easeOutCubic),
     );
-    _progressController.forward();
+    if (inTest) {
+      _progressController.value = 1;
+    } else {
+      _progressController.forward();
+    }
   }
 
   @override

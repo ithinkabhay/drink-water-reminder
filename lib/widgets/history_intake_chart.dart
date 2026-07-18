@@ -2,18 +2,21 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../models/hydration_stats.dart';
-import '../utils/constants.dart';
 
 /// Bar chart visualizing daily intake for a history period.
 class HistoryIntakeChart extends StatelessWidget {
-  /// Creates a chart for [stats].
+  /// Creates a chart for [stats] with a horizontal [goalMl] reference line.
   const HistoryIntakeChart({
     super.key,
     required this.stats,
+    required this.goalMl,
   });
 
   /// Aggregated stats whose [HydrationStats.entries] drive the bars.
   final HydrationStats stats;
+
+  /// Daily goal used for the reference line and Y-axis scale.
+  final int goalMl;
 
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   static const _months = [
@@ -159,7 +162,7 @@ class HistoryIntakeChart extends StatelessWidget {
           extraLinesData: ExtraLinesData(
             horizontalLines: [
               HorizontalLine(
-                y: AppConstants.dailyGoalMl.toDouble().clamp(0, maxY),
+                y: goalMl.toDouble().clamp(0, maxY),
                 color: colorScheme.tertiary.withValues(alpha: 0.7),
                 strokeWidth: 1.2,
                 dashArray: const [6, 4],
@@ -183,7 +186,7 @@ class HistoryIntakeChart extends StatelessWidget {
 
   double _maxY(HydrationStats stats) {
     final peak = stats.entries.fold<int>(
-      AppConstants.dailyGoalMl,
+      goalMl,
       (max, e) => e.consumedMl > max ? e.consumedMl : max,
     );
     return (peak * 1.15).clamp(500, double.infinity);
