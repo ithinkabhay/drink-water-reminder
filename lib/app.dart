@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
 
 import 'providers/reminder_provider.dart';
+import 'providers/theme_provider.dart';
 import 'repositories/hydration_repository.dart';
 import 'screens/full_screen_reminder_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'theme/app_theme.dart';
 import 'utils/constants.dart';
 import 'widgets/snooze_duration_sheet.dart';
 
-/// Root widget that configures [MaterialApp] for the Drink Water Reminder.
+/// Root widget that configures [MaterialApp] for Waterly.
 class DrinkWaterApp extends StatefulWidget {
   /// Creates the root application widget.
   const DrinkWaterApp({
     super.key,
     required this.reminderProvider,
+    required this.themeProvider,
   });
 
   /// Shared reminder settings + notification coordinator.
   final ReminderProvider reminderProvider;
+
+  /// Theme preference controller.
+  final ThemeProvider themeProvider;
 
   @override
   State<DrinkWaterApp> createState() => _DrinkWaterAppState();
@@ -33,9 +38,7 @@ class _DrinkWaterAppState extends State<DrinkWaterApp> {
   void initState() {
     super.initState();
     widget.reminderProvider.addListener(_onReminderChanged);
-    // Cold-start actions set pending flags before runApp, so the listener
-    // alone would miss them — check once after the first frame.
-    // Also restore schedules here so the 10s ringtone MethodChannel is live.
+    widget.themeProvider.addListener(_onThemeChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       try {
@@ -48,11 +51,16 @@ class _DrinkWaterAppState extends State<DrinkWaterApp> {
   @override
   void dispose() {
     widget.reminderProvider.removeListener(_onReminderChanged);
+    widget.themeProvider.removeListener(_onThemeChanged);
     super.dispose();
   }
 
   void _onReminderChanged() {
     _drainPendingUi();
+  }
+
+  void _onThemeChanged() {
+    if (mounted) setState(() {});
   }
 
   void _drainPendingUi() {
@@ -87,12 +95,17 @@ class _DrinkWaterAppState extends State<DrinkWaterApp> {
     widget.reminderProvider.clearFullScreenReminderRequest();
 
     await nav.push<void>(
-      MaterialPageRoute<void>(
+      PageRouteBuilder<void>(
+        opaque: true,
         fullscreenDialog: true,
-        builder: (_) => FullScreenReminderScreen(
+        pageBuilder: (_, animation, secondaryAnimation) => FullScreenReminderScreen(
           onDrankWater: widget.reminderProvider.handleDrankWater,
           onRemindLater: widget.reminderProvider.requestSnoozePicker,
         ),
+        transitionsBuilder: (_, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 280),
       ),
     );
 
@@ -104,7 +117,6 @@ class _DrinkWaterAppState extends State<DrinkWaterApp> {
     final nav = _navigatorKey.currentState;
     if (nav == null) {
       if (!mounted) return;
-      // Single deferred retry — avoid infinite post-frame loops in tests.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !widget.reminderProvider.pendingSnoozePicker) return;
         final retryNav = _navigatorKey.currentState;
@@ -138,10 +150,16 @@ class _DrinkWaterAppState extends State<DrinkWaterApp> {
       navigatorKey: _navigatorKey,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: widget.themeProvider.themeMode,
       home: onboardingComplete
-          ? HomeScreen(reminderProvider: widget.reminderProvider)
-          : OnboardingScreen(reminderProvider: widget.reminderProvider),
+          ? MainShell(
+              reminderProvider: widget.reminderProvider,
+              themeProvider: widget.themeProvider,
+            )
+          : OnboardingScreen(
+              reminderProvider: widget.reminderProvider,
+              themeProvider: widget.themeProvider,
+            ),
     );
   }
 }

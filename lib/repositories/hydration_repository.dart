@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import '../models/daily_intake.dart';
 import '../models/intake_entry.dart';
 import '../models/reminder_settings.dart';
@@ -86,6 +88,13 @@ class HydrationRepository {
   Future<void> saveUserProfile(UserProfile profile) =>
       _storage.saveUserProfile(profile);
 
+  /// Local profile avatar path, or `null` when unset.
+  String? loadProfileAvatarPath() => _storage.loadProfileAvatarPath();
+
+  /// Persists the profile avatar path (or clears it when `null`).
+  Future<void> saveProfileAvatarPath(String? path) =>
+      _storage.saveProfileAvatarPath(path);
+
   /// Completes onboarding by saving [profile], [dailyGoalMl], and the flag.
   Future<void> completeOnboarding({
     required UserProfile profile,
@@ -95,4 +104,39 @@ class HydrationRepository {
     await saveDailyGoalMl(dailyGoalMl);
     await setOnboardingComplete(true);
   }
+
+  /// Preferred [ThemeMode], defaulting to system.
+  ThemeMode loadThemeMode() {
+    switch (_storage.loadThemeModeKey()) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
+  }
+
+  /// Persists [mode].
+  Future<void> saveThemeMode(ThemeMode mode) {
+    final key = switch (mode) {
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
+      ThemeMode.system => 'system',
+    };
+    return _storage.saveThemeModeKey(key);
+  }
+
+  /// JSON export of local hydration data.
+  Map<String, dynamic> exportData() => _storage.exportData();
+
+  /// Restores data from an [exportData] snapshot.
+  Future<void> importData(Map<String, dynamic> data) =>
+      _storage.importData(data);
+
+  /// Clears intake logs and history (keeps profile / settings).
+  Future<void> resetHydrationData() => _storage.resetHydrationData();
+
+  /// Full factory reset of the Hive box.
+  Future<void> resetAllData() => _storage.resetAllData();
 }

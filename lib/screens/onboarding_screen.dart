@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 
 import '../models/user_profile.dart';
 import '../providers/reminder_provider.dart';
+import '../providers/theme_provider.dart';
 import '../repositories/hydration_repository.dart';
+import '../theme/app_radius.dart';
+import '../theme/app_spacing.dart';
 import '../utils/constants.dart';
 import '../utils/water_goal_calculator.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/gradient_background.dart';
-import 'home_screen.dart';
+import 'main_shell.dart';
 
 /// First-launch multi-step onboarding that collects profile data and a goal.
 class OnboardingScreen extends StatefulWidget {
@@ -16,10 +19,14 @@ class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
     super.key,
     required this.reminderProvider,
+    required this.themeProvider,
   });
 
-  /// Shared reminder coordinator passed through to [HomeScreen].
+  /// Shared reminder coordinator passed through to [MainShell].
   final ReminderProvider reminderProvider;
+
+  /// Theme preference controller passed through to [MainShell].
+  final ThemeProvider themeProvider;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -168,8 +175,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder<void>(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              HomeScreen(reminderProvider: widget.reminderProvider),
+          pageBuilder: (context, animation, secondaryAnimation) => MainShell(
+            reminderProvider: widget.reminderProvider,
+            themeProvider: widget.themeProvider,
+          ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
@@ -193,12 +202,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  AppSpacing.xs,
+                ),
                 child: Row(
                   children: [
                     AnimatedOpacity(
                       opacity: _pageIndex > 0 ? 1 : 0,
-                      duration: const Duration(milliseconds: 200),
+                      duration: AppConstants.animFast,
                       child: IconButton(
                         onPressed: _pageIndex > 0 ? _goBack : null,
                         icon: const Icon(Icons.arrow_back_rounded),
@@ -206,7 +220,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                     Expanded(
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: AppRadius.capsuleAll,
                         child: LinearProgressIndicator(
                           value: (_pageIndex + 1) / _pageCount,
                           minHeight: 6,
@@ -251,7 +265,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.xs,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
                 child: FilledButton(
                   onPressed: _saving ? null : _goNext,
                   child: _saving
@@ -287,7 +306,7 @@ class _WelcomeStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -297,11 +316,18 @@ class _WelcomeStep extends StatelessWidget {
             size: 72,
             color: colorScheme.primary,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.lg),
           Text(
             'Welcome to ${AppConstants.brandName}',
             style: textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            AppConstants.tagline,
+            style: textTheme.titleMedium?.copyWith(
+              color: colorScheme.primary,
             ),
           ),
           const SizedBox(height: 12),

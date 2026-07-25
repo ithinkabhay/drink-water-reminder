@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 
-/// Shared constants used across the Drink Water Reminder app.
+import '../theme/app_radius.dart';
+import '../theme/app_typography.dart';
+
+/// Shared constants used across the Waterly app.
 ///
 /// Keeps magic numbers and strings in one place for easy maintenance.
+/// Visual tokens (colors, spacing, radius, type) live under `lib/theme/`.
 class AppConstants {
   /// Private constructor — this class is not meant to be instantiated.
   const AppConstants._();
 
   /// Display name shown in the system and the app bar.
-  static const String appTitle = 'Drink Water Reminder';
+  static const String appTitle = 'Waterly';
 
-  /// Short brand name used in the premium home header.
-  static const String brandName = 'Hydrate';
+  /// Short brand name used in onboarding and about.
+  static const String brandName = 'Waterly';
+
+  /// Product tagline.
+  static const String tagline = 'Stay Hydrated. Stay Healthy.';
 
   /// Label above the intake / goal values.
   static const String todaysGoalLabel = "Today's Goal";
@@ -34,14 +41,11 @@ class AppConstants {
     4000,
   ];
 
-  /// Preset amounts shown in the Quick Add grid (milliliters).
+  /// Preset amounts shown in the Quick Add chip row (milliliters).
   static const List<int> quickAddAmountsMl = [
     100,
-    200,
     250,
     500,
-    750,
-    1000,
   ];
 
   /// Lowest allowed custom quick-add amount in milliliters.
@@ -54,25 +58,40 @@ class AppConstants {
   static const String customAmountLabel = 'Custom';
 
   /// Water-inspired seed color for the Material 3 color scheme.
-  static const Color seedColor = Color(0xFF2196F3);
+  static const Color seedColor = Color(0xFF5DB8FF);
 
   /// Diameter of the circular progress indicator.
-  static const double progressSize = 220;
+  static const double progressSize = 260;
 
   /// Stroke width of the circular progress indicator.
-  static const double progressStrokeWidth = 10;
+  static const double progressStrokeWidth = 14;
 
-  /// Height of each quick-add grid tile.
-  static const double quickAddTileHeight = 56;
+  /// Height of each quick-add chip.
+  static const double quickAddTileHeight = 48;
 
-  /// Corner radius of quick-add tiles.
-  static const double quickAddTileRadius = 16;
+  /// Corner radius of quick-add chips.
+  static const double quickAddTileRadius = AppRadius.capsule;
 
   /// Corner radius for filled primary buttons (theme-wide).
-  static const double buttonRadius = 20;
+  static const double buttonRadius = AppRadius.medium;
 
-  /// Corner radius for glassmorphism cards.
-  static const double glassCardRadius = 24;
+  /// Corner radius for surface cards.
+  static const double glassCardRadius = AppRadius.medium;
+
+  /// Large typography size (greetings).
+  static const double fontSizeLarge = AppTypography.large;
+
+  /// Medium typography size (hydration circle / titles).
+  static const double fontSizeMedium = AppTypography.medium;
+
+  /// Small typography size (descriptions).
+  static const double fontSizeSmall = AppTypography.small;
+
+  /// Standard micro-interaction duration.
+  static const Duration animFast = Duration(milliseconds: 220);
+
+  /// Standard UI transition duration.
+  static const Duration animNormal = Duration(milliseconds: 300);
 
   /// Motivational messages keyed by progress bands.
   static const List<String> motivationalMessages = [
@@ -156,6 +175,12 @@ class AppConstants {
   /// Key for the persisted user profile JSON.
   static const String keyUserProfile = 'user_profile';
 
+  /// Key for the preferred theme mode (`system` / `light` / `dark`).
+  static const String keyThemeMode = 'theme_mode';
+
+  /// Key for the local profile avatar file path.
+  static const String keyProfileAvatarPath = 'profile_avatar_path';
+
   /// Lowest allowed age during onboarding / profile edit.
   static const int minAge = 5;
 
@@ -196,12 +221,12 @@ class AppConstants {
   /// also mirrored under `assets/sounds/` for bundling.
   static const String notificationSoundResource = 'water_chime';
 
-  /// Base Android notification channel id prefix (v5 restores vibration +
-  /// supports per-ringtone / per-vibration channel variants).
+  /// Base Android notification channel id prefix (v6 = max importance, lock
+  /// screen public, silent channel + companion 10s foreground sound service).
   ///
   /// Channel settings are immutable on Android — [NotificationService]
   /// appends sound/vibration suffixes so toggles take effect.
-  static const String notificationChannelIdPrefix = 'water_reminders_v5';
+  static const String notificationChannelIdPrefix = 'water_reminders_v6';
 
   /// Legacy alias kept for older references; prefer dynamic channel ids.
   static const String notificationChannelId = notificationChannelIdPrefix;
@@ -211,8 +236,8 @@ class AppConstants {
 
   /// Android notification channel description.
   static const String notificationChannelDescription =
-      'High-priority hydration reminders with sound, vibration, '
-      'and full-screen alerts';
+      'High-priority hydration reminders with vibration, lock-screen '
+      'visibility, and a companion 10-second ringtone alert';
 
   /// How long reminder sound / heads-up should run (milliseconds).
   static const int notificationAlertDurationMs = 10000;
@@ -231,10 +256,6 @@ class AppConstants {
     15,
     30,
     45,
-    60,
-    90,
-    120,
-    180,
   ];
 
   /// Legacy alias kept for any remaining callers.

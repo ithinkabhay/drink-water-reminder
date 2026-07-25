@@ -4,16 +4,23 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.net.Uri
+import android.os.Build
+import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Schedules exact alarms that trigger [ReminderSoundReceiver] so reminder
  * audio can loop for a full duration instead of a one-shot notification beep.
+ *
+ * Pending schedules are persisted so they can be restored after reboot.
  */
 object ReminderSoundScheduler {
+    private const val TAG = "ReminderSoundScheduler"
     private const val PREFS = "reminder_sound_alarms"
     private const val KEY_IDS = "request_codes"
+    private const val KEY_SCHEDULES = "schedules_json"
     private const val BASE_REQUEST_CODE = 710_000
 
     fun schedule(
@@ -38,16 +45,28 @@ object ReminderSoundScheduler {
                 @Suppress("DEPRECATION")
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
             }
-            rememberId(appContext, requestCode)
-        } catch (_: Exception) {
+            rememberSchedule(appContext, requestCode, triggerAtMillis, uri, durationMs)
+            Log.i(
+                TAG,
+                "Scheduled sound alarm requestCode=$requestCode at=$triggerAtMillis",
+            )
+        } catch (exactError: Exception) {
+            Log.w(TAG, "Exact alarm failed — trying inexact", exactError)
             try {
-                alarmManager.setAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAtMillis,
-                    pending,
-                )
-                rememberId(appContext, requestCode)
-            } catch (_: Exception) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        pending,
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
+                }
+                rememberSchedule(appContext, requestCode, triggerAtMillis, uri, durationMs)
+                Log.i(TAG, "Scheduled inexact sound alarm requestCode=$requestCode")
+            } catch (inexactError: Exception) {
+                Log.e(TAG, "Failed to schedule sound alarm requestCode=$requestCode", inexactError)
             }
         }
     }
@@ -57,14 +76,50 @@ object ReminderSoundScheduler {
         val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val ids = prefs.getStringSet(KEY_IDS, emptySet())?.toSet().orEmpty()
+        Log.i(TAG, "Cancelling ${ids.size} sound alarms")
         for (idString in ids) {
             val code = idString.toIntOrNull() ?: continue
             val pending = pendingIntent(appContext, code, "", 10_000L)
             alarmManager.cancel(pending)
             pending.cancel()
         }
-        prefs.edit().remove(KEY_IDS).apply()
+        prefs.edit()
+            .remove(KEY_IDS)
+            .remove(KEY_SCHEDULES)
+            .apply()
         ReminderSoundPlayer.stop()
+    }
+
+    /**
+     * Re-registers future companion sound alarms after reboot / package replace.
+     */
+    fun restoreAfterBoot(context: Context) {
+        val appContext = context.applicationContext
+        val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val raw = prefs.getString(KEY_SCHEDULES, null)
+        if (raw.isNullOrBlank()) {
+            Log.i(TAG, "No persisted sound schedules to restore")
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        var restored = 0
+        try {
+            val array = JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val requestCode = item.optInt("requestCode", -1)
+                val triggerAt = item.optLong("triggerAt", -1L)
+                val uri = item.optString("uri", "")
+                val durationMs = item.optLong("durationMs", 10_000L)
+                if (requestCode < 0 || triggerAt <= now || uri.isBlank()) continue
+                schedule(appContext, requestCode, triggerAt, uri, durationMs)
+                restored++
+            }
+            Log.i(TAG, "Restored $restored companion sound alarms after boot")
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to restore sound schedules after boot", error)
+        }
     }
 
     fun builtinSoundUri(context: Context): String {
@@ -94,11 +149,42 @@ object ReminderSoundScheduler {
         return PendingIntent.getBroadcast(context, requestCode, intent, flags)
     }
 
-    private fun rememberId(context: Context, requestCode: Int) {
+    private fun rememberSchedule(
+        context: Context,
+        requestCode: Int,
+        triggerAtMillis: Long,
+        uri: String,
+        durationMs: Long,
+    ) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val next = prefs.getStringSet(KEY_IDS, emptySet())?.toMutableSet() ?: mutableSetOf()
         next.add(requestCode.toString())
-        prefs.edit().putStringSet(KEY_IDS, next).apply()
+
+        val schedules = mutableListOf<JSONObject>()
+        val existingRaw = prefs.getString(KEY_SCHEDULES, null)
+        if (!existingRaw.isNullOrBlank()) {
+            try {
+                val array = JSONArray(existingRaw)
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    if (item.optInt("requestCode") == requestCode) continue
+                    schedules.add(item)
+                }
+            } catch (_: Exception) {
+            }
+        }
+        schedules.add(
+            JSONObject()
+                .put("requestCode", requestCode)
+                .put("triggerAt", triggerAtMillis)
+                .put("uri", uri)
+                .put("durationMs", durationMs),
+        )
+
+        prefs.edit()
+            .putStringSet(KEY_IDS, next)
+            .putString(KEY_SCHEDULES, JSONArray(schedules).toString())
+            .apply()
     }
 
     fun requestCodeForNotification(notificationId: Int): Int = BASE_REQUEST_CODE + notificationId

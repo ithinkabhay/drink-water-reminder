@@ -102,7 +102,10 @@ class RingtonePickerService {
         'notificationId': notificationId,
       });
     } catch (error) {
-      debugPrint('Schedule alert sound failed: $error');
+      debugPrint(
+        'Schedule alert sound failed '
+        '(notificationId=$notificationId, at=$triggerAt): $error',
+      );
     }
   }
 

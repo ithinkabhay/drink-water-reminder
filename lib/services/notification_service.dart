@@ -170,8 +170,8 @@ class NotificationService {
   /// Creates the high-importance Android channel for the current settings.
   ///
   /// Sound is intentionally off on the channel: Android only plays channel
-  /// sounds once (~1s). A companion AlarmManager player loops the ringtone
-  /// for [AppConstants.notificationAlertDurationMs] instead.
+  /// sounds once (~1s). A companion AlarmManager + foreground service loops
+  /// the ringtone for [AppConstants.notificationAlertDurationMs] instead.
   Future<void> ensureAndroidChannel(ReminderSettings settings) async {
     if (!_canUsePlugin) return;
     if (defaultTargetPlatform != TargetPlatform.android) return;
@@ -179,49 +179,63 @@ class NotificationService {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       final pattern = settings.vibrationEnabled ? _vibrationPattern : null;
+      final channelId = channelIdFor(settings);
       await android?.createNotificationChannel(
         AndroidNotificationChannel(
-          channelIdFor(settings),
+          channelId,
           AppConstants.notificationChannelName,
           description: AppConstants.notificationChannelDescription,
           importance: Importance.max,
           playSound: false,
           enableVibration: settings.vibrationEnabled,
           vibrationPattern: pattern,
-          audioAttributesUsage: AudioAttributesUsage.notification,
+          showBadge: true,
+          // Keep heads-up / lock-screen visibility high.
+          enableLights: true,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
         ),
       );
-    } catch (_) {}
+      debugPrint(
+        'Android reminder channel ready: $channelId '
+        '(vibration=${settings.vibrationEnabled})',
+      );
+    } catch (error, stack) {
+      debugPrint('Failed to create Android channel: $error\n$stack');
+    }
   }
 
   /// Dynamic channel id so vibration changes take effect on Android.
   static String channelIdFor(ReminderSettings settings) {
     final vibe = settings.vibrationEnabled ? 'vibe' : 'novibe';
-    // v6 = silent channel + companion 10s ringtone player
     return '${AppConstants.notificationChannelIdPrefix}_silent_$vibe';
   }
 
+  /// ~10s repeating vibrate / pause pattern for a stronger lock-screen nudge.
   static Int64List get _vibrationPattern => Int64List.fromList(const [
         0,
-        500,
-        200,
-        500,
-        200,
-        500,
-        200,
-        500,
-        200,
-        500,
-        200,
-        500,
-        200,
-        500,
-        200,
-        500,
-        200,
-        500,
-        200,
-        500,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
+        250,
+        600,
       ]);
 
   /// Requests notification, exact-alarm, and full-screen-intent permissions.
@@ -344,8 +358,12 @@ class NotificationService {
     try {
       await _plugin.cancelAll();
       await RingtonePickerService.cancelAllAlertSounds();
+      debugPrint('Cancelled all pending reminders before reschedule');
 
-      if (!settings.enabled) return;
+      if (!settings.enabled) {
+        debugPrint('Reminders disabled — nothing to schedule');
+        return;
+      }
 
       await ensureAndroidChannel(settings);
 
@@ -522,6 +540,11 @@ class NotificationService {
         slot = slot.add(Duration(minutes: settings.intervalMinutes));
       }
     }
+
+    debugPrint(
+      'Scheduled $notificationId hydration reminders '
+      '(mode=$scheduleMode, skipToday=$skipToday)',
+    );
   }
 
   /// Schedules a looping ringtone for ~10s at the same instant as a reminder.
@@ -587,7 +610,11 @@ class NotificationService {
         fullScreenIntent: true,
         visibility: NotificationVisibility.public,
         timeoutAfter: AppConstants.notificationAlertDurationMs,
-        audioAttributesUsage: AudioAttributesUsage.notification,
+        ongoing: false,
+        autoCancel: true,
+        onlyAlertOnce: false,
+        ticker: 'Time to drink water',
+        audioAttributesUsage: AudioAttributesUsage.alarm,
         actions: <AndroidNotificationAction>[
           const AndroidNotificationAction(
             AppConstants.actionDrankWater,

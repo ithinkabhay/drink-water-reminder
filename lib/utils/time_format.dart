@@ -7,12 +7,30 @@ class TimeFormat {
   /// Private constructor — this class is not meant to be instantiated.
   const TimeFormat._();
 
-  /// Time-of-day greeting: Good Morning / Afternoon / Evening.
+  /// Time-of-day greeting: Good Morning / Afternoon / Evening / Night.
+  ///
+  /// Windows: Morning 5–11:59, Afternoon 12–16:59, Evening 17–19:59,
+  /// Night 20–4:59.
   static String greeting({DateTime? now}) {
     final hour = (now ?? DateTime.now()).hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 17) return 'Good Afternoon';
+    if (hour >= 17 && hour < 20) return 'Good Evening';
+    return 'Good Night';
+  }
+
+  /// Emoji that matches [greeting] for the current time of day.
+  static String greetingIcon({DateTime? now}) {
+    final hour = (now ?? DateTime.now()).hour;
+    if (hour >= 5 && hour < 12) return '🌅';
+    if (hour >= 12 && hour < 17) return '☀️';
+    if (hour >= 17 && hour < 20) return '🌇';
+    return '🌙';
+  }
+
+  /// Combined icon + greeting, e.g. `🌅 Good Morning`.
+  static String greetingWithIcon({DateTime? now}) {
+    return '${greetingIcon(now: now)} ${greeting(now: now)}';
   }
 
   /// Relative label such as "Just now", "2 hours ago".

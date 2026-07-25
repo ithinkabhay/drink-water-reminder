@@ -108,7 +108,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
-        ReminderSoundPlayer.stop()
+        // Do not stop ReminderSoundPlayer here — Activity recreation / process
+        // teardown would cut the ~10s looping reminder sound short (~1s beep).
         super.onDestroy()
     }
 
@@ -160,6 +161,16 @@ class MainActivity : FlutterActivity() {
         if (uri == null) {
             result.success(null)
             return
+        }
+
+        // Persist URI read permission when the system grants it.
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (_: Exception) {
+            // Many ringtone URIs are not persistable — ignore.
         }
 
         val title = try {

@@ -9,7 +9,7 @@ void main() {
     test('defaults enable smart assistant options', () {
       final settings = ReminderSettings.defaults();
       expect(settings.enabled, isTrue);
-      expect(settings.intervalMinutes, 60);
+      expect(settings.intervalMinutes, 45);
       expect(settings.soundEnabled, isTrue);
       expect(settings.vibrationEnabled, isTrue);
       expect(settings.defaultQuickAddMl, 250);
@@ -49,12 +49,12 @@ void main() {
 
   group('AppConstants intervals', () {
     test('exposes presets and custom bounds', () {
-      expect(AppConstants.reminderIntervalPresetsMinutes, containsAll([15, 60, 180]));
+      expect(AppConstants.reminderIntervalPresetsMinutes, [15, 30, 45]);
       expect(AppConstants.minCustomIntervalMinutes, 10);
       expect(AppConstants.maxCustomIntervalMinutes, 360);
       expect(AppConstants.snoozeOptionsMinutes, [10, 15, 30]);
+      expect(AppConstants.intervalLabel(45), 'Every 45 minutes');
       expect(AppConstants.intervalLabel(90), 'Every 1h 30m');
-      expect(AppConstants.intervalLabel(120), 'Every 2 hours');
     });
   });
 }

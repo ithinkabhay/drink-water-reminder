@@ -308,6 +308,158 @@ class StorageService {
     );
   }
 
+  /// Loads the preferred theme mode key (`system` / `light` / `dark`).
+  String loadThemeModeKey() {
+    return (_box.get(AppConstants.keyThemeMode) as String?) ?? 'system';
+  }
+
+  /// Persists theme mode as a string key.
+  Future<void> saveThemeModeKey(String mode) async {
+    await _box.put(AppConstants.keyThemeMode, mode);
+  }
+
+  /// Local file path for the profile avatar, or `null` when unset / missing.
+  String? loadProfileAvatarPath() {
+    final path = _box.get(AppConstants.keyProfileAvatarPath) as String?;
+    if (path == null || path.isEmpty) return null;
+    return path;
+  }
+
+  /// Persists the profile avatar file path.
+  Future<void> saveProfileAvatarPath(String? path) async {
+    if (path == null || path.isEmpty) {
+      await _box.delete(AppConstants.keyProfileAvatarPath);
+      return;
+    }
+    await _box.put(AppConstants.keyProfileAvatarPath, path);
+  }
+
+  /// Exports a JSON snapshot of hydration data for backup / share.
+  Map<String, dynamic> exportData() {
+    final settings = loadReminderSettings();
+    return {
+      'exportedAt': DateTime.now().toIso8601String(),
+      'app': AppConstants.brandName,
+      'dailyGoalMl': loadDailyGoalMl(),
+      'consumedMl': loadTodayIntake(),
+      'streak': loadStreak(),
+      'history': loadDailyHistory(),
+      'todayEntries': [for (final e in loadTodayEntries()) e.toJson()],
+      'profile': loadUserProfile()?.toJson(),
+      'reminderSettings': {
+        'enabled': settings.enabled,
+        'intervalMinutes': settings.intervalMinutes,
+        'startHour': settings.startHour,
+        'startMinute': settings.startMinute,
+        'endHour': settings.endHour,
+        'endMinute': settings.endMinute,
+        'soundEnabled': settings.soundEnabled,
+        'vibrationEnabled': settings.vibrationEnabled,
+        'defaultQuickAddMl': settings.defaultQuickAddMl,
+        'stopAfterGoalCompleted': settings.stopAfterGoalCompleted,
+        'skipIfRecentlyLogged': settings.skipIfRecentlyLogged,
+      },
+    };
+  }
+
+  /// Restores hydration data from an [exportData] snapshot.
+  Future<void> importData(Map<String, dynamic> data) async {
+    final goal = (data['dailyGoalMl'] as num?)?.toInt();
+    if (goal != null) {
+      await saveDailyGoalMl(goal);
+    }
+
+    final historyRaw = data['history'];
+    if (historyRaw is Map) {
+      final history = historyRaw.map(
+        (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+      );
+      await _box.put(AppConstants.keyDailyHistory, jsonEncode(history));
+    }
+
+    final entriesRaw = data['todayEntries'];
+    if (entriesRaw is List) {
+      final entries = <IntakeEntry>[
+        for (final item in entriesRaw)
+          if (item is Map)
+            IntakeEntry.fromJson(Map<String, dynamic>.from(item)),
+      ];
+      await _writeEntries(entries);
+      final total = entries.fold<int>(0, (sum, e) => sum + e.amountMl);
+      await saveTodayIntake(total);
+    } else {
+      final consumed = (data['consumedMl'] as num?)?.toInt();
+      if (consumed != null) {
+        await saveTodayIntake(consumed);
+      }
+    }
+
+    final streak = (data['streak'] as num?)?.toInt();
+    if (streak != null) {
+      await _box.put(AppConstants.keyStreakCount, streak);
+      await _box.put(AppConstants.keyLastActiveDate, _todayIso());
+    }
+
+    final profileRaw = data['profile'];
+    if (profileRaw is Map) {
+      await saveUserProfile(
+        UserProfile.fromJson(Map<String, dynamic>.from(profileRaw)),
+      );
+      await setOnboardingComplete(true);
+    }
+
+    final settingsRaw = data['reminderSettings'];
+    if (settingsRaw is Map) {
+      final map = Map<String, dynamic>.from(settingsRaw);
+      final current = loadReminderSettings();
+      await saveReminderSettings(
+        current.copyWith(
+          enabled: map['enabled'] as bool? ?? current.enabled,
+          intervalMinutes:
+              (map['intervalMinutes'] as num?)?.toInt() ??
+                  current.intervalMinutes,
+          startHour:
+              (map['startHour'] as num?)?.toInt() ?? current.startHour,
+          startMinute:
+              (map['startMinute'] as num?)?.toInt() ?? current.startMinute,
+          endHour: (map['endHour'] as num?)?.toInt() ?? current.endHour,
+          endMinute:
+              (map['endMinute'] as num?)?.toInt() ?? current.endMinute,
+          soundEnabled: map['soundEnabled'] as bool? ?? current.soundEnabled,
+          vibrationEnabled:
+              map['vibrationEnabled'] as bool? ?? current.vibrationEnabled,
+          defaultQuickAddMl:
+              (map['defaultQuickAddMl'] as num?)?.toInt() ??
+                  current.defaultQuickAddMl,
+          stopAfterGoalCompleted: map['stopAfterGoalCompleted'] as bool? ??
+              current.stopAfterGoalCompleted,
+          skipIfRecentlyLogged: map['skipIfRecentlyLogged'] as bool? ??
+              current.skipIfRecentlyLogged,
+        ),
+      );
+    }
+  }
+
+  /// Clears hydration logs and history while preserving profile, goal,
+  /// reminder settings, onboarding, and theme preference.
+  Future<void> resetHydrationData() async {
+    final today = _todayIso();
+    await _box.put(AppConstants.keyConsumedMl, 0);
+    await _box.put(
+      AppConstants.keyIntakeEntries,
+      jsonEncode(<Map<String, dynamic>>[]),
+    );
+    await _box.put(AppConstants.keySavedDate, today);
+    await _box.put(AppConstants.keyDailyHistory, jsonEncode(<String, int>{}));
+    await _box.put(AppConstants.keyStreakCount, 0);
+    await _box.delete(AppConstants.keyLastActiveDate);
+  }
+
+  /// Wipes all app data in the Hive box (full factory reset).
+  Future<void> resetAllData() async {
+    await _box.clear();
+  }
+
   Map<String, int> _readHistoryMap() {
     final raw = _box.get(AppConstants.keyDailyHistory);
     if (raw is String && raw.isNotEmpty) {

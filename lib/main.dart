@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app.dart';
 import 'providers/reminder_provider.dart';
+import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
 
@@ -18,11 +19,17 @@ Future<void> main() async {
 
   final notifications = NotificationService();
   final reminderProvider = ReminderProvider(notifications: notifications);
+  final themeProvider = ThemeProvider();
   // Wire notifications first, then ask for permission. Full schedule (including
   // the 10s ringtone alarms) runs after the first frame when the platform
   // channel is attached — see [DrinkWaterApp].
   await reminderProvider.init(scheduleReminders: false);
   await notifications.requestPermission();
 
-  runApp(DrinkWaterApp(reminderProvider: reminderProvider));
+  runApp(
+    DrinkWaterApp(
+      reminderProvider: reminderProvider,
+      themeProvider: themeProvider,
+    ),
+  );
 }

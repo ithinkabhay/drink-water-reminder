@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Drink Water Reminder</string>
+	<string>Waterly</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>drink_water_reminder</string>
+	<string>Waterly</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -55,6 +55,8 @@
 	</array>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Drink Water Reminder needs notification permission to remind you to stay hydrated.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Waterly needs photo access so you can set a profile picture.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

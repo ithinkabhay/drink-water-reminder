@@ -7,14 +7,17 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.util.Log
 
 /**
  * Loops a ringtone/URI for a fixed duration (default 10 seconds).
  *
  * Android notification-channel sounds only play once (~1s), so reminders
- * use this companion player instead.
+ * use this companion player (hosted by [ReminderSoundService]) instead.
  */
 object ReminderSoundPlayer {
+    private const val TAG = "ReminderSoundPlayer"
+
     private var mediaPlayer: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -23,6 +26,7 @@ object ReminderSoundPlayer {
     @Synchronized
     fun play(context: Context, uri: Uri, durationMs: Long) {
         stop()
+        val clamped = durationMs.coerceIn(1_000L, 15_000L)
         try {
             val appContext = context.applicationContext
             val player = MediaPlayer().apply {
@@ -34,7 +38,8 @@ object ReminderSoundPlayer {
                 )
                 setDataSource(appContext, uri)
                 isLooping = true
-                setOnErrorListener { _, _, _ ->
+                setOnErrorListener { _, what, extra ->
+                    Log.e(TAG, "MediaPlayer error what=$what extra=$extra")
                     stop()
                     true
                 }
@@ -42,6 +47,7 @@ object ReminderSoundPlayer {
                 start()
             }
             mediaPlayer = player
+            Log.i(TAG, "Started looping playback for ${clamped}ms uri=$uri")
 
             val pm = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(
@@ -49,13 +55,17 @@ object ReminderSoundPlayer {
                 "drink_water_reminder:ReminderSound",
             ).also {
                 it.setReferenceCounted(false)
-                it.acquire(durationMs + 2_000L)
+                it.acquire(clamped + 2_000L)
             }
 
-            val stop = Runnable { stop() }
+            val stop = Runnable {
+                Log.i(TAG, "Stop runnable fired after ${clamped}ms")
+                stop()
+            }
             stopRunnable = stop
-            handler.postDelayed(stop, durationMs.coerceIn(1_000L, 15_000L))
-        } catch (_: Exception) {
+            handler.postDelayed(stop, clamped)
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to play reminder sound uri=$uri", error)
             stop()
         }
     }

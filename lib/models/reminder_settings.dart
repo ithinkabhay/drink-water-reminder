@@ -68,7 +68,7 @@ class ReminderSettings {
   factory ReminderSettings.defaults() {
     return const ReminderSettings(
       enabled: true,
-      intervalMinutes: 60,
+      intervalMinutes: 45,
       startHour: 8,
       startMinute: 0,
       endHour: 22,
